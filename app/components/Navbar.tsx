@@ -63,7 +63,7 @@ export function Navbar() {
             <Link href="/kol" className="text-gray-700 hover:text-gray-900 font-medium">
               KOL列表
             </Link>
-            <Link href="/twitter-verify" className="text-gray-700 hover:text-gray-900 font-medium">
+            <Link href="/verify" className="text-gray-700 hover:text-gray-900 font-medium">
               验证中心
             </Link>
             <Link href="/docs" className="text-gray-700 hover:text-gray-900 font-medium">
@@ -121,7 +121,7 @@ export function Navbar() {
                 KOL列表
               </Link>
               <Link 
-                href="/twitter-verify" 
+                href="/verify" 
                 className="text-gray-700 hover:text-gray-900 font-medium"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
