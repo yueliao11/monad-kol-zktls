@@ -8,6 +8,13 @@
       "maxDuration": 30
     }
   },
+  "redirects": [
+    {
+      "source": "/verify",
+      "destination": "/kol",
+      "permanent": false
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
