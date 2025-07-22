@@ -187,7 +187,7 @@ export function KOLJoinModal({ isOpen, onClose, onSuccess }: KOLJoinModalProps) 
       }
     } catch (error) {
       console.error('Twitter verification failed:', error);
-      alert('❌ Twitter 验证失败：' + error.message);
+      alert('❌ Twitter 验证失败：' + (error instanceof Error ? error.message : '未知错误'));
     } finally {
       setIsLoading(false);
     }
@@ -279,7 +279,7 @@ export function KOLJoinModal({ isOpen, onClose, onSuccess }: KOLJoinModalProps) 
       });
     } catch (error) {
       console.error('Submission failed:', error);
-      alert(`申请失败：${error.message || '未知错误'}`);
+      alert(`申请失败：${error instanceof Error ? error.message : '未知错误'}`);
     } finally {
       setIsLoading(false);
     }

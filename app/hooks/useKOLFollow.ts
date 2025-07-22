@@ -72,7 +72,9 @@ export function useKOLFollow({ kolAddress }: UseKOLFollowProps) {
     abi: KOL_CREDIBILITY_ABI,
     functionName: 'isFollowing',
     args: userAddress && kolAddress ? [userAddress, kolAddress] : undefined,
-    enabled: !!userAddress && !!kolAddress
+    query: {
+      enabled: !!userAddress && !!kolAddress
+    }
   });
 
   // Read follower count
@@ -81,7 +83,9 @@ export function useKOLFollow({ kolAddress }: UseKOLFollowProps) {
     abi: KOL_CREDIBILITY_ABI,
     functionName: 'getFollowerCount',
     args: kolAddress ? [kolAddress] : undefined,
-    enabled: !!kolAddress
+    query: {
+      enabled: !!kolAddress
+    }
   });
 
   // Write contract hooks
@@ -191,7 +195,9 @@ export function useKOLFollows(kols: KOLProfile[]) {
     abi: KOL_CREDIBILITY_ABI,
     functionName: 'getFollowStatuses',
     args: userAddress ? [userAddress, kols.map(k => k.walletAddress)] : undefined,
-    enabled: !!userAddress && kols.length > 0
+    query: {
+      enabled: !!userAddress && kols.length > 0
+    }
   });
 
   // Initialize states

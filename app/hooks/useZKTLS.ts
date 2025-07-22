@@ -8,7 +8,14 @@ export interface UseZKTLSReturn {
   attestation: AttestationResult | null
   verificationResult: VerificationResult | null
   verifyTwitter: (userAddress: string) => Promise<void>
-  startZKTLSVerification: (params: { type: string; platform: string; templateId: string }) => Promise<{ success: boolean; attestation?: any }>
+  startZKTLSVerification: (params: { 
+    type: string; 
+    platform: string; 
+    templateId: string; 
+    dataSource?: string; 
+    requestUrl?: string; 
+    dataItems?: any 
+  }) => Promise<{ success: boolean; attestation?: any }>
   reset: () => void
 }
 
@@ -41,7 +48,14 @@ export function useZKTLS(): UseZKTLSReturn {
     }
   }, [])
 
-  const startZKTLSVerification = useCallback(async (params: { type: string; platform: string; templateId: string; dataSource?: string; requestUrl?: string; dataItems?: any }) => {
+  const startZKTLSVerification = useCallback(async (params: { 
+    type: string; 
+    platform: string; 
+    templateId: string; 
+    dataSource?: string; 
+    requestUrl?: string; 
+    dataItems?: any 
+  }) => {
     setIsLoading(true)
     setError(null)
     

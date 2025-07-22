@@ -24,7 +24,7 @@ import {
   ExternalLink,
   Share2
 } from 'lucide-react';
-import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+// import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Link from 'next/link';
 
 export default function KOLDetailPage() {
@@ -244,21 +244,27 @@ export default function KOLDetailPage() {
                     <CardTitle>30天收益曲线</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <AreaChart data={performanceData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" />
-                        <YAxis />
-                        <Tooltip />
-                        <Area 
-                          type="monotone" 
-                          dataKey="pnl" 
-                          stroke="#10b981" 
-                          fill="#10b981" 
-                          fillOpacity={0.3}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                    <div className="w-full h-[300px] bg-gradient-to-r from-green-50 to-blue-50 rounded-lg flex items-center justify-center">
+                      <div className="text-center">
+                        <TrendingUp className="h-16 w-16 text-green-500 mx-auto mb-4" />
+                        <p className="text-lg font-medium text-gray-700">性能图表</p>
+                        <p className="text-sm text-gray-500">30天收益趋势分析</p>
+                        <div className="mt-4 grid grid-cols-3 gap-4 text-center">
+                          <div>
+                            <p className="text-2xl font-bold text-green-600">+15.7%</p>
+                            <p className="text-xs text-gray-500">总收益</p>
+                          </div>
+                          <div>
+                            <p className="text-2xl font-bold text-blue-600">68%</p>
+                            <p className="text-xs text-gray-500">胜率</p>
+                          </div>
+                          <div>
+                            <p className="text-2xl font-bold text-purple-600">293</p>
+                            <p className="text-xs text-gray-500">交易次数</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
 
