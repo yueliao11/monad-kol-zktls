@@ -1,15 +1,10 @@
 {
   "version": 2,
-  "framework": "nextjs",
-  "buildCommand": "cd app && npm run build",
-  "outputDirectory": "app/.next",
-  "installCommand": "npm install --legacy-peer-deps && cd app && npm install --legacy-peer-deps",
-  "devCommand": "cd app && npm run dev",
   "functions": {
-    "app/app/api/zktls/config/route.ts": {
+    "app/api/zktls/config/route.ts": {
       "maxDuration": 30
     },
-    "app/app/api/zktls/sign/route.ts": {
+    "app/api/zktls/sign/route.ts": {
       "maxDuration": 30
     }
   },
@@ -32,5 +27,4 @@
       ]
     }
   ]
-
 }
