@@ -23,9 +23,9 @@
 
 **Framework Preset**: Next.js  
 **Root Directory**: 选择 `app` 目录  
-**Build Command**: `npm run build`  
-**Output Directory**: `.next`  
-**Install Command**: `npm install`  
+**Build Command**: `cd app && npm run build`  
+**Output Directory**: `app/.next`  
+**Install Command**: `npm install --legacy-peer-deps && cd app && npm install --legacy-peer-deps`  
 
 ### 4. 配置环境变量
 在 Vercel 项目设置的 "Environment Variables" 中添加以下变量：
@@ -124,23 +124,33 @@ Chain ID: 10143
 
 ### 常见部署问题
 
-#### 1. 安全漏洞警告
+#### 1. 依赖冲突错误
+```
+npm error ERESOLVE unable to resolve dependency tree
+npm error peer eslint@"^7.23.0 || ^8.0.0" from eslint-config-next@14.1.0
+```
+**解决方案**: 
+- 使用 `--legacy-peer-deps` 标志安装依赖
+- 项目已配置 `.npmrc` 文件自动处理
+- ESLint 版本已降级到 v8 以兼容 Next.js
+
+#### 2. 安全漏洞警告
 ```
 1 critical severity vulnerability
 ```
 **解决方案**: 
 - 警告来自过时的依赖，已在最新版本修复
-- 运行 `npm audit fix` 或更新到最新依赖版本
+- 运行 `npm audit fix --legacy-peer-deps` 或更新到最新依赖版本
 
-#### 2. ESLint 版本警告
+#### 3. ESLint 版本警告
 ```
 npm warn deprecated eslint@8.57.1
 ```
 **解决方案**: 
-- 已更新到 ESLint v9
-- 确保使用最新的 package.json
+- 此版本与 Next.js 14.1.0 兼容
+- 生产环境中不影响功能
 
-#### 3. 构建路径错误
+#### 4. 构建路径错误
 ```
 Error: Cannot find module './app/.next'
 ```
@@ -150,13 +160,13 @@ Error: Cannot find module './app/.next'
   - Output Directory: `app/.next`
   - Install Command: `npm install && cd app && npm install`
 
-#### 4. 环境变量未加载
+#### 5. 环境变量未加载
 **解决方案**: 
 - 在 Vercel 控制台手动添加所有环境变量
 - 重新部署项目
 - 检查变量名拼写是否正确
 
-#### 5. API 路由 404 错误
+#### 6. API 路由 404 错误
 **解决方案**: 
 - 确认 API 路由在 `app/app/api/` 目录下
 - 检查 vercel.json 中的函数路径配置
