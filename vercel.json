@@ -1,22 +1,35 @@
 {
+  "version": 2,
+  "framework": "nextjs",
   "buildCommand": "cd app && npm run build",
   "outputDirectory": "app/.next",
-  "framework": "nextjs",
-  "installCommand": "npm install",
+  "installCommand": "npm install && cd app && npm install",
   "devCommand": "cd app && npm run dev",
-  "env": {
-    "NEXT_PUBLIC_CONTRACT_ADDRESS": "0x91a44beCCBd69f04414202e7E538d845C4F85b7a",
-    "NEXT_PUBLIC_VIBE_TOKEN_ADDRESS": "0x91a44beCCBd69f04414202e7E538d845C4F85b7a",
-    "NEXT_PUBLIC_PRIMUS_APP_ID": "0x65ca3a593ef6044a8bd7070326da05b2bd4faa1b",
-    "NEXT_PUBLIC_RPC_URL": "https://testnet-rpc.monad.xyz",
-    "PRIMUS_APP_SECRET": "0xd09fb9867ec58f44bca320c431369a810c0195d1164c8d063a578746336f8be4"
-  },
   "functions": {
-    "app/api/zktls/config/route.ts": {
+    "app/app/api/zktls/config/route.ts": {
       "maxDuration": 30
     },
-    "app/api/zktls/sign/route.ts": {
+    "app/app/api/zktls/sign/route.ts": {
       "maxDuration": 30
     }
-  }
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        }
+      ]
+    }
+  ]
 }

@@ -31,7 +31,7 @@
 在 Vercel 项目设置的 "Environment Variables" 中添加以下变量：
 
 ```bash
-# 必需的环境变量
+# 必需的环境变量 - 在 Vercel 控制台中逐个添加
 NEXT_PUBLIC_CONTRACT_ADDRESS=0x91a44beCCBd69f04414202e7E538d845C4F85b7a
 NEXT_PUBLIC_VIBE_TOKEN_ADDRESS=0x91a44beCCBd69f04414202e7E538d845C4F85b7a
 NEXT_PUBLIC_PRIMUS_APP_ID=0x65ca3a593ef6044a8bd7070326da05b2bd4faa1b
@@ -39,7 +39,10 @@ NEXT_PUBLIC_RPC_URL=https://testnet-rpc.monad.xyz
 PRIMUS_APP_SECRET=0xd09fb9867ec58f44bca320c431369a810c0195d1164c8d063a578746336f8be4
 ```
 
-**NEXT_PUBLIC_APP_URL** 会在部署后自动设置为你的 Vercel 域名。
+⚠️ **重要**: 
+- 所有环境变量都要在 Vercel 控制台中手动添加
+- 不要在代码仓库中提交敏感信息
+- **NEXT_PUBLIC_APP_URL** 会自动设置为你的 Vercel 域名
 
 ### 5. 部署
 点击 "Deploy" 按钮开始部署。
@@ -117,12 +120,62 @@ Chain ID: 10143
 2. **测试网络**: 项目目前运行在 Monad 测试网，请使用测试代币
 3. **备份数据**: 重要的交易记录请做好备份
 
+## 🛠️ 故障排除
+
+### 常见部署问题
+
+#### 1. 安全漏洞警告
+```
+1 critical severity vulnerability
+```
+**解决方案**: 
+- 警告来自过时的依赖，已在最新版本修复
+- 运行 `npm audit fix` 或更新到最新依赖版本
+
+#### 2. ESLint 版本警告
+```
+npm warn deprecated eslint@8.57.1
+```
+**解决方案**: 
+- 已更新到 ESLint v9
+- 确保使用最新的 package.json
+
+#### 3. 构建路径错误
+```
+Error: Cannot find module './app/.next'
+```
+**解决方案**: 
+- 确认 Vercel 项目设置中：
+  - Build Command: `cd app && npm run build`
+  - Output Directory: `app/.next`
+  - Install Command: `npm install && cd app && npm install`
+
+#### 4. 环境变量未加载
+**解决方案**: 
+- 在 Vercel 控制台手动添加所有环境变量
+- 重新部署项目
+- 检查变量名拼写是否正确
+
+#### 5. API 路由 404 错误
+**解决方案**: 
+- 确认 API 路由在 `app/app/api/` 目录下
+- 检查 vercel.json 中的函数路径配置
+
+### 性能优化建议
+
+1. **启用压缩**: Vercel 自动启用 gzip 压缩
+2. **图片优化**: 使用 Next.js Image 组件
+3. **缓存策略**: 配置适当的缓存头
+4. **边缘函数**: 将 API 路由部署到边缘位置
+
 ## 📞 支持
 
 如果在部署或使用过程中遇到问题：
 1. 检查环境变量配置是否正确
 2. 确认网络连接和 RPC 端点可用
 3. 查看浏览器控制台的错误信息
+4. 参考上述故障排除指南
+5. 查看 Vercel 部署日志获取详细错误信息
 
 ## 🔗 相关链接
 
