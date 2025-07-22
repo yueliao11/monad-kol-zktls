@@ -1,0 +1,264 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import {Ownable} from "./Ownable.sol";
+import {IERC20} from "./IERC20.sol";
+import "./CreatorRegistry.sol";
+import "./TokenFactory.sol";
+
+contract ContentRewards is Ownable {
+    CreatorRegistry public registry;
+    TokenFactory public factory;
+    
+    struct ContentItem {
+        address creator;
+        string contentHash; // IPFS hash
+        string title;
+        string platform;
+        uint256 createdAt;
+        uint256 rewardAmount;
+        uint256 views;
+        uint256 likes;
+        uint256 shares;
+        bool isRewarded;
+    }
+    
+    struct RewardPool {
+        address tokenAddress;
+        uint256 totalPool;
+        uint256 remainingPool;
+        uint256 baseReward;
+        uint256 lastDistribution;
+    }
+    
+    mapping(bytes32 => ContentItem) public content;
+    mapping(address => RewardPool) public creatorPools;
+    mapping(address => uint256) public creatorContentCount;
+    mapping(address => uint256) public totalRewardsEarned;
+    mapping(bytes32 => bool) public contentExists;
+    
+    uint256 public constant REWARD_PERIOD = 7 days;
+    uint256 public constant MIN_REWARD_AMOUNT = 1 * 10**18; // 1 token
+    uint256 public constant MAX_REWARD_MULTIPLIER = 10;
+    
+    event ContentCreated(
+        bytes32 indexed contentId,
+        address indexed creator,
+        string contentHash,
+        string title
+    );
+    
+    event RewardDistributed(
+        bytes32 indexed contentId,
+        address indexed creator,
+        uint256 amount
+    );
+    
+    event PoolFunded(
+        address indexed creator,
+        uint256 amount
+    );
+    
+    constructor(address _registry, address _factory) {
+        registry = CreatorRegistry(_registry);
+        factory = TokenFactory(_factory);
+    }
+    
+    function createContent(
+        string memory contentHash,
+        string memory title,
+        string memory platform
+    ) external returns (bytes32) {
+        require(registry.isVerifiedCreator(msg.sender), "Not verified creator");
+        
+        bytes32 contentId = keccak256(abi.encodePacked(
+            msg.sender,
+            contentHash,
+            block.timestamp
+        ));
+        
+        require(!contentExists[contentId], "Content already exists");
+        
+        content[contentId] = ContentItem({
+            creator: msg.sender,
+            contentHash: contentHash,
+            title: title,
+            platform: platform,
+            createdAt: block.timestamp,
+            rewardAmount: 0,
+            views: 0,
+            likes: 0,
+            shares: 0,
+            isRewarded: false
+        });
+        
+        contentExists[contentId] = true;
+        creatorContentCount[msg.sender]++;
+        
+        emit ContentCreated(contentId, msg.sender, contentHash, title);
+        return contentId;
+    }
+    
+    function fundRewardPool(uint256 amount) external {
+        address tokenAddress = factory.getCreatorToken(msg.sender);
+        require(tokenAddress != address(0), "No creator token");
+        
+        IERC20 token = IERC20(tokenAddress);
+        require(token.transferFrom(msg.sender, address(this), amount), "Transfer failed");
+        
+        RewardPool storage pool = creatorPools[msg.sender];
+        pool.tokenAddress = tokenAddress;
+        pool.totalPool += amount;
+        pool.remainingPool += amount;
+        pool.baseReward = amount / 100; // 1% of pool as base reward
+        pool.lastDistribution = block.timestamp;
+        
+        emit PoolFunded(msg.sender, amount);
+    }
+    
+    function updateContentMetrics(
+        bytes32 contentId,
+        uint256 views,
+        uint256 likes,
+        uint256 shares
+    ) external {
+        require(contentExists[contentId], "Content not found");
+        
+        ContentItem storage item = content[contentId];
+        require(item.creator == msg.sender, "Not content creator");
+        
+        item.views = views;
+        item.likes = likes;
+        item.shares = shares;
+        
+        // Auto-distribute rewards if conditions met
+        if (!item.isRewarded && _shouldDistributeReward(item)) {
+            _distributeReward(contentId);
+        }
+    }
+    
+    function _shouldDistributeReward(ContentItem memory item) internal view returns (bool) {
+        // Check if enough time has passed
+        if (block.timestamp < item.createdAt + REWARD_PERIOD) {
+            return false;
+        }
+        
+        // Check if there's enough engagement
+        uint256 engagement = item.views + (item.likes * 10) + (item.shares * 50);
+        return engagement >= 100; // Minimum engagement threshold
+    }
+    
+    function _distributeReward(bytes32 contentId) internal {
+        ContentItem storage item = content[contentId];
+        RewardPool storage pool = creatorPools[item.creator];
+        
+        if (pool.remainingPool == 0) return;
+        
+        uint256 rewardAmount = _calculateReward(item, pool);
+        
+        if (rewardAmount > 0 && rewardAmount <= pool.remainingPool) {
+            pool.remainingPool -= rewardAmount;
+            item.rewardAmount = rewardAmount;
+            item.isRewarded = true;
+            
+            totalRewardsEarned[item.creator] += rewardAmount;
+            
+            // Transfer reward to creator
+            IERC20(pool.tokenAddress).transfer(item.creator, rewardAmount);
+            
+            emit RewardDistributed(contentId, item.creator, rewardAmount);
+        }
+    }
+    
+    function _calculateReward(
+        ContentItem memory item,
+        RewardPool memory pool
+    ) internal view returns (uint256) {
+        uint256 baseReward = pool.baseReward;
+        
+        // Calculate engagement score
+        uint256 engagement = item.views + (item.likes * 10) + (item.shares * 50);
+        uint256 multiplier = (engagement / 1000) + 1; // Base multiplier
+        
+        if (multiplier > MAX_REWARD_MULTIPLIER) {
+            multiplier = MAX_REWARD_MULTIPLIER;
+        }
+        
+        // Get creator level bonus
+        (, , , uint256 creatorLevel, , ,) = registry.getCreatorProfile(item.creator);
+        uint256 levelBonus = creatorLevel * 20; // 20% bonus per level
+        
+        uint256 finalReward = baseReward * multiplier * (100 + levelBonus) / 100;
+        
+        return finalReward > MIN_REWARD_AMOUNT ? finalReward : MIN_REWARD_AMOUNT;
+    }
+    
+    function claimReward(bytes32 contentId) external {
+        ContentItem storage item = content[contentId];
+        require(item.creator == msg.sender, "Not content creator");
+        require(!item.isRewarded, "Already rewarded");
+        
+        if (_shouldDistributeReward(item)) {
+            _distributeReward(contentId);
+        }
+    }
+    
+    function batchClaimRewards(bytes32[] calldata contentIds) external {
+        for (uint256 i = 0; i < contentIds.length; i++) {
+            ContentItem storage item = content[contentIds[i]];
+            if (item.creator == msg.sender && !item.isRewarded && _shouldDistributeReward(item)) {
+                _distributeReward(contentIds[i]);
+            }
+        }
+    }
+    
+    function getContentInfo(bytes32 contentId) external view returns (
+        address creator,
+        string memory contentHash,
+        string memory title,
+        string memory platform,
+        uint256 createdAt,
+        uint256 rewardAmount,
+        uint256 views,
+        uint256 likes,
+        uint256 shares,
+        bool isRewarded
+    ) {
+        ContentItem storage item = content[contentId];
+        return (
+            item.creator,
+            item.contentHash,
+            item.title,
+            item.platform,
+            item.createdAt,
+            item.rewardAmount,
+            item.views,
+            item.likes,
+            item.shares,
+            item.isRewarded
+        );
+    }
+    
+    function getCreatorStats(address creator) external view returns (
+        uint256 contentCount,
+        uint256 totalRewards,
+        uint256 poolBalance,
+        uint256 baseReward
+    ) {
+        RewardPool storage pool = creatorPools[creator];
+        return (
+            creatorContentCount[creator],
+            totalRewardsEarned[creator],
+            pool.remainingPool,
+            pool.baseReward
+        );
+    }
+    
+    function updateRegistry(address _registry) external onlyOwner {
+        registry = CreatorRegistry(_registry);
+    }
+    
+    function updateFactory(address _factory) external onlyOwner {
+        factory = TokenFactory(_factory);
+    }
+}

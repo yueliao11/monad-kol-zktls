@@ -1,0 +1,11 @@
+{
+  "name": "x-web3-kol-platform",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "app"
+  ],
+  "dependencies": {
+    "@primuslabs/zktls-js-sdk": "^0.3.3"
+  }
+}

@@ -1,0 +1,133 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import {Ownable} from "./Ownable.sol";
+import "./CreatorRegistry.sol";
+import "./TokenFactory.sol";
+import "./ContentRewards.sol";
+import {IPrimusZKTLS, Attestation} from "@primuslabs/zktls-contracts/src/IPrimusZKTLS.sol";
+
+/**
+ * @title CreatorPlatform
+ * @dev Main contract that orchestrates the entire creator platform ecosystem
+ */
+contract CreatorPlatform is Ownable {
+    CreatorRegistry public registry;
+    TokenFactory public factory;
+    ContentRewards public rewards;
+    
+    address public primusAddress;
+    uint256 public platformFee; // Basis points (100 = 1%)
+    address public feeRecipient;
+    
+    event PlatformDeployed(
+        address indexed registry,
+        address indexed factory,
+        address indexed rewards
+    );
+    
+    event PlatformFeeUpdated(uint256 oldFee, uint256 newFee);
+    
+    constructor(address _primusAddress, uint256 _platformFee, address _feeRecipient) {
+        require(_primusAddress != address(0), "Invalid Primus address");
+        require(_feeRecipient != address(0), "Invalid fee recipient");
+        
+        primusAddress = _primusAddress;
+        platformFee = _platformFee;
+        feeRecipient = _feeRecipient;
+        
+        // Deploy core contracts
+        registry = new CreatorRegistry(_primusAddress);
+        factory = new TokenFactory(address(registry));
+        rewards = new ContentRewards(address(registry), address(factory));
+        
+        emit PlatformDeployed(address(registry), address(factory), address(rewards));
+    }
+    
+    function setPlatformFee(uint256 _platformFee) external onlyOwner {
+        require(_platformFee <= 1000, "Fee too high"); // Max 10%
+        uint256 oldFee = platformFee;
+        platformFee = _platformFee;
+        emit PlatformFeeUpdated(oldFee, _platformFee);
+    }
+    
+    function setFeeRecipient(address _feeRecipient) external onlyOwner {
+        require(_feeRecipient != address(0), "Invalid fee recipient");
+        feeRecipient = _feeRecipient;
+    }
+    
+    function updatePrimusAddress(address _primusAddress) external onlyOwner {
+        require(_primusAddress != address(0), "Invalid Primus address");
+        primusAddress = _primusAddress;
+        registry.updatePrimusAddress(_primusAddress);
+    }
+    
+    // Convenience functions that delegate to appropriate contracts
+    function verifyPlatform(
+        Attestation calldata attestation,
+        CreatorRegistry.PlatformType platformType
+    ) external {
+        registry.verifyPlatform(attestation, platformType);
+    }
+    
+    function createCreatorToken(
+        string memory name,
+        string memory symbol
+    ) external returns (address) {
+        return factory.createCreatorToken(name, symbol);
+    }
+    
+    function createContent(
+        string memory contentHash,
+        string memory title,
+        string memory platform
+    ) external returns (bytes32) {
+        return rewards.createContent(contentHash, title, platform);
+    }
+    
+    function fundRewardPool(uint256 amount) external {
+        rewards.fundRewardPool(amount);
+    }
+    
+    // View functions
+    function getCreatorProfile(address creator) external view returns (
+        address wallet,
+        string[] memory verifiedPlatforms,
+        uint256 credibilityScore,
+        uint256 creatorLevel,
+        address personalToken,
+        bool canIssueTokens,
+        uint256 verifiedAt
+    ) {
+        return registry.getCreatorProfile(creator);
+    }
+    
+    function getCreatorStats(address creator) external view returns (
+        uint256 contentCount,
+        uint256 totalRewards,
+        uint256 poolBalance,
+        uint256 baseReward
+    ) {
+        return rewards.getCreatorStats(creator);
+    }
+    
+    function getContractAddresses() external view returns (
+        address registryAddress,
+        address factoryAddress,
+        address rewardsAddress
+    ) {
+        return (address(registry), address(factory), address(rewards));
+    }
+    
+    function isVerifiedCreator(address creator) external view returns (bool) {
+        return registry.isVerifiedCreator(creator);
+    }
+    
+    function canCreateToken(address creator) external view returns (bool) {
+        return registry.canCreateToken(creator);
+    }
+    
+    function getCreatorToken(address creator) external view returns (address) {
+        return factory.getCreatorToken(creator);
+    }
+}

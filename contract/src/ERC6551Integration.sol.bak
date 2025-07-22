@@ -1,0 +1,251 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import {ERC721} from "@openzeppelin/token/ERC721/ERC721.sol";
+import {Ownable} from "./Ownable.sol";
+import "./CreatorRegistry.sol";
+
+interface IERC6551Registry {
+    function createAccount(
+        address implementation,
+        bytes32 salt,
+        uint256 chainId,
+        address tokenContract,
+        uint256 tokenId
+    ) external returns (address);
+    
+    function account(
+        address implementation,
+        bytes32 salt,
+        uint256 chainId,
+        address tokenContract,
+        uint256 tokenId
+    ) external view returns (address);
+}
+
+interface IERC6551Account {
+    function executeCall(
+        address to,
+        uint256 value,
+        bytes calldata data
+    ) external payable returns (bytes memory);
+}
+
+contract CreatorNFT is ERC721, Ownable {
+    uint256 private _nextTokenId;
+    CreatorRegistry public registry;
+    mapping(uint256 => address) public tokenIdToCreator;
+    mapping(address => uint256) public creatorToTokenId;
+    
+    event CreatorNFTMinted(address indexed creator, uint256 indexed tokenId);
+    
+    constructor(address _registry) ERC721("CreatorNFT", "CNFT") {
+        registry = CreatorRegistry(_registry);
+    }
+    
+    function mintCreatorNFT(address creator) external onlyOwner returns (uint256) {
+        require(creatorToTokenId[creator] == 0, "Creator already has NFT");
+        
+        uint256 tokenId = _nextTokenId++;
+        _mint(creator, tokenId);
+        
+        tokenIdToCreator[tokenId] = creator;
+        creatorToTokenId[creator] = tokenId;
+        
+        emit CreatorNFTMinted(creator, tokenId);
+        return tokenId;
+    }
+    
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+        require(_exists(tokenId), "Token does not exist");
+        
+        address creator = tokenIdToCreator[tokenId];
+        (, , uint256 credibilityScore, uint256 creatorLevel, , ,) = registry.getCreatorProfile(creator);
+        
+        // Return dynamic metadata based on creator profile
+        return string(abi.encodePacked(
+            "data:application/json;base64,",
+            _base64Encode(abi.encodePacked(
+                '{"name":"Creator NFT #', _toString(tokenId), '",',
+                '"description":"Creator identity NFT with ERC-6551 support",',
+                '"attributes":[',
+                '{"trait_type":"Creator Level","value":', _toString(creatorLevel), '},',
+                '{"trait_type":"Credibility Score","value":', _toString(credibilityScore), '}',
+                ']}'
+            ))
+        ));
+    }
+    
+    function _exists(uint256 tokenId) internal view returns (bool) {
+        return tokenId < _nextTokenId;
+    }
+    
+    function _toString(uint256 value) internal pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
+    }
+    
+    function _base64Encode(bytes memory data) internal pure returns (string memory) {
+        string memory table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        
+        if (data.length == 0) return "";
+        
+        string memory result = new string(4 * ((data.length + 2) / 3));
+        bytes memory resultBytes = bytes(result);
+        
+        uint256 i = 0;
+        uint256 j = 0;
+        
+        for (; i + 3 <= data.length; i += 3) {
+            uint256 value = (uint256(uint8(data[i])) << 16) |
+                           (uint256(uint8(data[i + 1])) << 8) |
+                           uint256(uint8(data[i + 2]));
+            
+            resultBytes[j++] = bytes(table)[value >> 18];
+            resultBytes[j++] = bytes(table)[(value >> 12) & 0x3F];
+            resultBytes[j++] = bytes(table)[(value >> 6) & 0x3F];
+            resultBytes[j++] = bytes(table)[value & 0x3F];
+        }
+        
+        if (i < data.length) {
+            uint256 value = uint256(uint8(data[i])) << 16;
+            if (i + 1 < data.length) {
+                value |= uint256(uint8(data[i + 1])) << 8;
+            }
+            
+            resultBytes[j++] = bytes(table)[value >> 18];
+            resultBytes[j++] = bytes(table)[(value >> 12) & 0x3F];
+            resultBytes[j++] = i + 1 < data.length ? bytes(table)[(value >> 6) & 0x3F] : bytes1("=");
+            resultBytes[j++] = bytes1("=");
+        }
+        
+        return result;
+    }
+}
+
+contract ERC6551Integration is Ownable {
+    IERC6551Registry public registry;
+    address public accountImplementation;
+    CreatorNFT public creatorNFT;
+    CreatorRegistry public creatorRegistry;
+    
+    mapping(address => address) public creatorToAccount;
+    mapping(address => uint256) public creatorToNFT;
+    mapping(address => bool) public isCreatorAccount;
+    
+    event CreatorAccountCreated(
+        address indexed creator,
+        address indexed account,
+        uint256 indexed tokenId
+    );
+    
+    event ContentNFTMinted(
+        address indexed creator,
+        address indexed account,
+        uint256 indexed tokenId,
+        string contentHash
+    );
+    
+    constructor(
+        address _registry,
+        address _accountImplementation,
+        address _creatorRegistry
+    ) {
+        registry = IERC6551Registry(_registry);
+        accountImplementation = _accountImplementation;
+        creatorRegistry = CreatorRegistry(_creatorRegistry);
+        
+        // Deploy CreatorNFT
+        creatorNFT = new CreatorNFT(_creatorRegistry);
+    }
+    
+    function createCreatorAccount(address creator) external returns (address) {
+        require(creatorRegistry.isVerifiedCreator(creator), "Not verified creator");
+        require(creatorToAccount[creator] == address(0), "Account already exists");
+        
+        // Mint NFT for creator
+        uint256 tokenId = creatorNFT.mintCreatorNFT(creator);
+        
+        // Create ERC-6551 account
+        bytes32 salt = keccak256(abi.encodePacked(creator, block.timestamp));
+        address account = registry.createAccount(
+            accountImplementation,
+            salt,
+            block.chainid,
+            address(creatorNFT),
+            tokenId
+        );
+        
+        // Store mappings
+        creatorToAccount[creator] = account;
+        creatorToNFT[creator] = tokenId;
+        isCreatorAccount[account] = true;
+        
+        emit CreatorAccountCreated(creator, account, tokenId);
+        return account;
+    }
+    
+    function getCreatorAccount(address creator) external view returns (address) {
+        return creatorToAccount[creator];
+    }
+    
+    function getCreatorNFT(address creator) external view returns (uint256) {
+        return creatorToNFT[creator];
+    }
+    
+    function mintContentNFT(
+        address creator,
+        string calldata contentHash,
+        string calldata title,
+        string calldata description
+    ) external returns (uint256) {
+        require(creatorToAccount[creator] != address(0), "Creator account not found");
+        require(msg.sender == creator, "Only creator can mint");
+        
+        // This would integrate with a content NFT contract
+        // For now, we'll emit an event
+        emit ContentNFTMinted(creator, creatorToAccount[creator], 0, contentHash);
+        
+        return 0; // Would return actual tokenId
+    }
+    
+    function executeFromCreatorAccount(
+        address creator,
+        address to,
+        uint256 value,
+        bytes calldata data
+    ) external returns (bytes memory) {
+        require(msg.sender == creator, "Only creator can execute");
+        
+        address account = creatorToAccount[creator];
+        require(account != address(0), "Creator account not found");
+        
+        return IERC6551Account(account).executeCall(to, value, data);
+    }
+    
+    function updateRegistry(address _registry) external onlyOwner {
+        registry = IERC6551Registry(_registry);
+    }
+    
+    function updateAccountImplementation(address _accountImplementation) external onlyOwner {
+        accountImplementation = _accountImplementation;
+    }
+    
+    function updateCreatorRegistry(address _creatorRegistry) external onlyOwner {
+        creatorRegistry = CreatorRegistry(_creatorRegistry);
+    }
+}
